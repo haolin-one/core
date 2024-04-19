@@ -6,6 +6,12 @@ export type Dep = Map<ReactiveEffect, number> & {
   computed?: ComputedRefImpl<any>
 }
 
+/**
+ * 创建依赖集合
+ * @param cleanup
+ * @param computed 是否为计算属性
+ * @returns
+ */
 export const createDep = (
   cleanup: () => void,
   computed?: ComputedRefImpl<any>,

@@ -95,6 +95,7 @@ class BaseReactiveHandler implements ProxyHandler<Target> {
   get(target: Target, key: string | symbol, receiver: object) {
     const isReadonly = this._isReadonly,
       isShallow = this._isShallow
+
     if (key === ReactiveFlags.IS_REACTIVE) {
       return !isReadonly
     } else if (key === ReactiveFlags.IS_READONLY) {
@@ -122,8 +123,8 @@ class BaseReactiveHandler implements ProxyHandler<Target> {
       return
     }
 
+    // 目标对象是数组
     const targetIsArray = isArray(target)
-
     if (!isReadonly) {
       if (targetIsArray && hasOwn(arrayInstrumentations, key)) {
         return Reflect.get(arrayInstrumentations, key, receiver)
@@ -133,25 +134,31 @@ class BaseReactiveHandler implements ProxyHandler<Target> {
       }
     }
 
+    // 目标对象是对象
     const res = Reflect.get(target, key, receiver)
 
     if (isSymbol(key) ? builtInSymbols.has(key) : isNonTrackableKeys(key)) {
       return res
     }
 
+    // 不是readonly()
     if (!isReadonly) {
+      // 建立 target、key 和 依赖函数 的关系
       track(target, TrackOpTypes.GET, key)
     }
 
+    // shallowReactive()
     if (isShallow) {
       return res
     }
 
+    // 结果ref
     if (isRef(res)) {
       // ref unwrapping - skip unwrap for Array + integer key.
       return targetIsArray && isIntegerKey(key) ? res : res.value
     }
 
+    // 结果是对象
     if (isObject(res)) {
       // Convert returned value into a proxy as well. we do the isObject check
       // here to avoid invalid value warning. Also need to lazy access readonly
@@ -159,6 +166,7 @@ class BaseReactiveHandler implements ProxyHandler<Target> {
       return isReadonly ? readonly(res) : reactive(res)
     }
 
+    // 返回结果
     return res
   }
 }

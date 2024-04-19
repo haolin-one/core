@@ -390,8 +390,20 @@ function baseCreateRenderer(
     insertStaticContent: hostInsertStaticContent,
   } = options
 
-  // Note: functions inside this closure should use `const xxx = () => {}`
-  // style in order to prevent being inlined by minifiers.
+  /**
+   * patch，对比新旧 vnode 进行处理
+   * Note: 在这个闭包内，函数应使用 const xxx = () => {} 的方式定义，以防止被压缩器（minifiers）内联处理。
+   * @param n1 旧 vnode
+   * @param n2 新 vnode
+   * @param container 容器(DOM 节点)
+   * @param anchor
+   * @param parentComponent
+   * @param parentSuspense
+   * @param namespace
+   * @param slotScopeIds
+   * @param optimized
+   * @returns
+   */
   const patch: PatchFn = (
     n1,
     n2,
@@ -403,11 +415,13 @@ function baseCreateRenderer(
     slotScopeIds = null,
     optimized = __DEV__ && isHmrUpdating ? false : !!n2.dynamicChildren,
   ) => {
+    // 如果新旧 vnode 相同，则直接返回
     if (n1 === n2) {
       return
     }
 
-    // patching & not same type, unmount old tree
+    // 如果发现新旧两个节点的类型不一致，直接卸载旧节点
+    // 不同类型节点的属性、样式和行为可能存在较大差异，无法通过简单的修改操作来完成更新
     if (n1 && !isSameVNodeType(n1, n2)) {
       anchor = getNextHostNode(n1)
       unmount(n1, parentComponent, parentSuspense, true)
@@ -829,6 +843,16 @@ function baseCreateRenderer(
     }
   }
 
+  /**
+   * patchELement
+   * @param n1 旧 vnode
+   * @param n2 新 vnode
+   * @param parentComponent 父组件
+   * @param parentSuspense
+   * @param namespace
+   * @param slotScopeIds
+   * @param optimized
+   */
   const patchElement = (
     n1: VNode,
     n2: VNode,
@@ -1187,6 +1211,18 @@ function baseCreateRenderer(
     }
   }
 
+  /**
+   * 处理组件 —— 挂载 or 更新
+   * @param n1 旧 vnode
+   * @param n2 新 vnode
+   * @param container 容器(DOM 节点)
+   * @param anchor
+   * @param parentComponent 父组件
+   * @param parentSuspense
+   * @param namespace
+   * @param slotScopeIds
+   * @param optimized
+   */
   const processComponent = (
     n1: VNode | null,
     n2: VNode,
@@ -1224,6 +1260,16 @@ function baseCreateRenderer(
     }
   }
 
+  /**
+   * 挂载组件 —— 创建组件实例
+   * @param initialVNode 新的 vnode
+   * @param container 容器(DOM 节点)
+   * @param anchor
+   * @param parentComponent 父组件
+   * @param parentSuspense
+   * @param namespace
+   * @param optimized
+   */
   const mountComponent: MountComponentFn = (
     initialVNode,
     container,
@@ -1237,6 +1283,8 @@ function baseCreateRenderer(
     // mounting
     const compatMountInstance =
       __COMPAT__ && initialVNode.isCompatRoot && initialVNode.component
+
+    /** 创建组件实例 */
     const instance: ComponentInternalInstance =
       compatMountInstance ||
       (initialVNode.component = createComponentInstance(
@@ -1245,15 +1293,6 @@ function baseCreateRenderer(
         parentSuspense,
       ))
 
-    if (__DEV__ && instance.type.__hmrId) {
-      registerHMR(instance)
-    }
-
-    if (__DEV__) {
-      pushWarningContext(initialVNode)
-      startMeasure(instance, `mount`)
-    }
-
     // inject renderer internals for keepAlive
     if (isKeepAlive(initialVNode)) {
       ;(instance.ctx as KeepAliveContext).renderer = internals
@@ -1261,13 +1300,7 @@ function baseCreateRenderer(
 
     // resolve props and slots for setup context
     if (!(__COMPAT__ && compatMountInstance)) {
-      if (__DEV__) {
-        startMeasure(instance, `init`)
-      }
       setupComponent(instance)
-      if (__DEV__) {
-        endMeasure(instance, `init`)
-      }
     }
 
     // setup() is async. This component relies on async logic to be resolved
@@ -1292,13 +1325,15 @@ function baseCreateRenderer(
         optimized,
       )
     }
-
-    if (__DEV__) {
-      popWarningContext()
-      endMeasure(instance, `mount`)
-    }
   }
 
+  /**
+   * 更新组件
+   * @param n1 旧 vnode
+   * @param n2 新 vnode
+   * @param optimized
+   * @returns
+   */
   const updateComponent = (n1: VNode, n2: VNode, optimized: boolean) => {
     const instance = (n2.component = n1.component)!
     if (shouldUpdateComponent(n1, n2, optimized)) {
@@ -1309,13 +1344,9 @@ function baseCreateRenderer(
       ) {
         // async & still pending - just update props and slots
         // since the component's reactive effect for render isn't set-up yet
-        if (__DEV__) {
-          pushWarningContext(n2)
-        }
+
         updateComponentPreRender(instance, n2, optimized)
-        if (__DEV__) {
-          popWarningContext()
-        }
+
         return
       } else {
         // normal update
@@ -1334,6 +1365,16 @@ function baseCreateRenderer(
     }
   }
 
+  /**
+   * 建立渲染副作用
+   * @param instance 组件实例
+   * @param initialVNode vnode
+   * @param container 容器
+   * @param anchor
+   * @param parentSuspense
+   * @param namespace
+   * @param optimized
+   */
   const setupRenderEffect: SetupRenderEffectFn = (
     instance,
     initialVNode,
@@ -1343,6 +1384,7 @@ function baseCreateRenderer(
     namespace: ElementNamespace,
     optimized,
   ) => {
+    /** 组件更新函数 */
     const componentUpdateFn = () => {
       if (!instance.isMounted) {
         let vnodeHook: VNodeHook | null | undefined
@@ -1407,16 +1449,7 @@ function baseCreateRenderer(
             hydrateSubTree()
           }
         } else {
-          if (__DEV__) {
-            startMeasure(instance, `render`)
-          }
           const subTree = (instance.subTree = renderComponentRoot(instance))
-          if (__DEV__) {
-            endMeasure(instance, `render`)
-          }
-          if (__DEV__) {
-            startMeasure(instance, `patch`)
-          }
           patch(
             null,
             subTree,
@@ -1426,9 +1459,6 @@ function baseCreateRenderer(
             parentSuspense,
             namespace,
           )
-          if (__DEV__) {
-            endMeasure(instance, `patch`)
-          }
           initialVNode.el = subTree.el
         }
         // mounted hook
@@ -1478,10 +1508,6 @@ function baseCreateRenderer(
         }
         instance.isMounted = true
 
-        if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
-          devtoolsComponentAdded(instance)
-        }
-
         // #2458: deference mount-only object parameters to prevent memleaks
         initialVNode = container = anchor = null as any
       } else {
@@ -1513,9 +1539,6 @@ function baseCreateRenderer(
         // OR parent calling processComponent (next: VNode)
         let originNext = next
         let vnodeHook: VNodeHook | null | undefined
-        if (__DEV__) {
-          pushWarningContext(next || instance.vnode)
-        }
 
         // Disallow component effect recursion during pre-lifecycle hooks.
         toggleRecurse(instance, false)
@@ -1542,20 +1565,11 @@ function baseCreateRenderer(
         }
         toggleRecurse(instance, true)
 
-        // render
-        if (__DEV__) {
-          startMeasure(instance, `render`)
-        }
         const nextTree = renderComponentRoot(instance)
-        if (__DEV__) {
-          endMeasure(instance, `render`)
-        }
+
         const prevTree = instance.subTree
         instance.subTree = nextTree
 
-        if (__DEV__) {
-          startMeasure(instance, `patch`)
-        }
         patch(
           prevTree,
           nextTree,
@@ -1567,9 +1581,7 @@ function baseCreateRenderer(
           parentSuspense,
           namespace,
         )
-        if (__DEV__) {
-          endMeasure(instance, `patch`)
-        }
+
         next.el = nextTree.el
         if (originNext === null) {
           // self-triggered update. In case of HOC, update parent component
@@ -1597,18 +1609,11 @@ function baseCreateRenderer(
             parentSuspense,
           )
         }
-
-        if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
-          devtoolsComponentUpdated(instance)
-        }
-
-        if (__DEV__) {
-          popWarningContext()
-        }
       }
     }
 
-    // create reactive effect for rendering
+    // 为组件渲染创建响应式副作用函数
+    /** 响应式副作用函数 */
     const effect = (instance.effect = new ReactiveEffect(
       componentUpdateFn,
       NOOP,
@@ -1616,6 +1621,7 @@ function baseCreateRenderer(
       instance.scope, // track it in component's effect scope
     ))
 
+    /** 更新函数 */
     const update: SchedulerJob = (instance.update = () => {
       if (effect.dirty) {
         effect.run()
@@ -1626,16 +1632,7 @@ function baseCreateRenderer(
     // #1801, #2043 component render effects should allow recursive updates
     toggleRecurse(instance, true)
 
-    if (__DEV__) {
-      effect.onTrack = instance.rtc
-        ? e => invokeArrayFns(instance.rtc!, e)
-        : void 0
-      effect.onTrigger = instance.rtg
-        ? e => invokeArrayFns(instance.rtg!, e)
-        : void 0
-      update.ownerInstance = instance
-    }
-
+    // 立即执行更新函数，effect.run()
     update()
   }
 
@@ -2410,6 +2407,7 @@ function baseCreateRenderer(
       flushPostFlushCbs()
       isFlushing = false
     }
+    // 记录 vnode，是为了对新旧 vnode 进行 patch 操作
     container._vnode = vnode
   }
 

@@ -85,19 +85,6 @@ export const createApp = ((...args) => {
       // The user must make sure the in-DOM template is trusted. If it's
       // rendered by the server, the template should not contain any user data.
       component.template = container.innerHTML
-      // 2.x compat check
-      if (__COMPAT__ && __DEV__) {
-        for (let i = 0; i < container.attributes.length; i++) {
-          const attr = container.attributes[i]
-          if (attr.name !== 'v-cloak' && /^(v-|:|@)/.test(attr.name)) {
-            compatUtils.warnDeprecation(
-              DeprecationTypes.GLOBAL_MOUNT_CONTAINER,
-              null,
-            )
-            break
-          }
-        }
-      }
     }
 
     // clear content before mounting

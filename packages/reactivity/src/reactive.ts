@@ -49,6 +49,18 @@ function targetTypeMap(rawType: string) {
   }
 }
 
+/**
+ * 获取目标对象具体数据类型
+ * @param value 目标对象
+ * @returns 
+ * ```
+ * enum TargetType {
+    INVALID = 0,
+    COMMON = 1,
+    COLLECTION = 2,
+   }
+ * ```
+ */
 function getTargetType(value: Target) {
   return value[ReactiveFlags.SKIP] || !Object.isExtensible(value)
     ? TargetType.INVALID
@@ -75,10 +87,11 @@ export type UnwrapNestedRefs<T> = T extends Ref ? T : UnwrapRefSimple<T>
  */
 export function reactive<T extends object>(target: T): UnwrapNestedRefs<T>
 export function reactive(target: object) {
-  // if trying to observe a readonly proxy, return the readonly version.
+  // 若尝试观察一个只读代理时，返回该代理的只读版本。
   if (isReadonly(target)) {
     return target
   }
+  // 返回创建的代理对象
   return createReactiveObject(
     target,
     false,
@@ -239,6 +252,15 @@ export function shallowReadonly<T extends object>(target: T): Readonly<T> {
   )
 }
 
+/**
+ * 创建响应式对象
+ * @param target 目标对象
+ * @param isReadonly 是否是只读的，readonly()
+ * @param baseHandlers 对象/数组handlers，mutableHandlers
+ * @param collectionHandlers 映射/集合handlers，mutableCollectionHandlers
+ * @param proxyMap 代理对象映射集合，reactiveMap()
+ * @returns proxy 代理对象
+ */
 function createReactiveObject(
   target: Target,
   isReadonly: boolean,
@@ -246,35 +268,42 @@ function createReactiveObject(
   collectionHandlers: ProxyHandler<any>,
   proxyMap: WeakMap<Target, any>,
 ) {
+  // target必须是对象
   if (!isObject(target)) {
-    if (__DEV__) {
-      warn(`value cannot be made reactive: ${String(target)}`)
-    }
     return target
   }
-  // target is already a Proxy, return it.
-  // exception: calling readonly() on a reactive object
+
+  // 目标对象已为响应式对象，返回它.
+  // 例外: readonl(proxy)
   if (
     target[ReactiveFlags.RAW] &&
     !(isReadonly && target[ReactiveFlags.IS_REACTIVE])
   ) {
     return target
   }
-  // target already has corresponding Proxy
+
+  // 映射集合中已存有该对象的代理
   const existingProxy = proxyMap.get(target)
   if (existingProxy) {
     return existingProxy
   }
-  // only specific value types can be observed.
+
+  // 只有特定数据类型可以被观察
   const targetType = getTargetType(target)
   if (targetType === TargetType.INVALID) {
     return target
   }
+
+  // 创建代理对象
   const proxy = new Proxy(
     target,
     targetType === TargetType.COLLECTION ? collectionHandlers : baseHandlers,
   )
+
+  // 存到对应的映射中，下次再创建用已有缓存
   proxyMap.set(target, proxy)
+
+  // 返回代理对象
   return proxy
 }
 

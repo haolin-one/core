@@ -1,0 +1,49 @@
+<!--
+ * @Date: 2024-04-18 17:52:24
+ * @LastEditors: howling-one 1393452797@qq.com
+ * @LastEditTime: 2024-04-19 14:38:39
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <div id="app">
+    <p>p标签</p>
+    <h1>{{ obj.a }}</h1>
+    <h2>{{ obj.a }}</h2>
+    <h3>{{ obj.a }}</h3>
+    <h4>{{ obj.a }}</h4>
+    <input v-model="obj.a" />
+  </div>
+
+  <script src="../../dist/vue.global.js"></script>
+  <script>
+    const { reactive, ref, createApp, computed, onMounted } = Vue
+
+    const app = createApp({
+      setup() {
+        const obj = reactive({
+          a: 1,
+          b: 2
+        })
+
+
+        onMounted(() => {
+          obj.b = 3
+        })
+
+        return { obj }
+      },
+    })
+    app.mount('#app');
+
+  </script>
+</body>
+
+</html>

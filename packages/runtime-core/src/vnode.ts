@@ -361,19 +361,16 @@ export function isVNode(value: any): value is VNode {
   return value ? value.__v_isVNode === true : false
 }
 
+/**
+ * 如果发现新旧两个节点的类型不一致（例如一个是div元素，更新后变成了span元素）
+ * 则卸载（unmount）原有的DOM子树，因为不同类型节点的属性、样式和行为可能存在较大差异，无法通过简单的修改操作来完成更新。
+ * 在这种情况下，卸载旧DOM树后再创建并挂载新的DOM树是最合适的更新策略。
+ *
+ * @param n1 旧 vnode
+ * @param n2 新 vnode
+ * @returns 新旧 vnode 类型、key 是否相同
+ */
 export function isSameVNodeType(n1: VNode, n2: VNode): boolean {
-  if (
-    __DEV__ &&
-    n2.shapeFlag & ShapeFlags.COMPONENT &&
-    hmrDirtyComponents.has(n2.type as ConcreteComponent)
-  ) {
-    // #7042, ensure the vnode being unmounted during HMR
-    // bitwise operations to remove keep alive flags
-    n1.shapeFlag &= ~ShapeFlags.COMPONENT_SHOULD_KEEP_ALIVE
-    n2.shapeFlag &= ~ShapeFlags.COMPONENT_KEPT_ALIVE
-    // HMR only: if the component has been hot-updated, force a reload.
-    return false
-  }
   return n1.type === n2.type && n1.key === n2.key
 }
 
@@ -426,6 +423,10 @@ const normalizeRef = ({
   ) as any
 }
 
+/**
+ * 创建 vnode，真正返回 vnode
+ * @returns vnode
+ */
 function createBaseVNode(
   type: VNodeTypes | ClassComponent | typeof NULL_DYNAMIC_COMPONENT,
   props: (Data & VNodeProps) | null = null,
@@ -513,10 +514,16 @@ function createBaseVNode(
 
 export { createBaseVNode as createElementVNode }
 
+/**
+ * 创建 vnode
+ */
 export const createVNode = (
   __DEV__ ? createVNodeWithArgsTransform : _createVNode
 ) as typeof _createVNode
 
+/**
+ * 创建 vnode，这里主要对参数做处理
+ */
 function _createVNode(
   type: VNodeTypes | ClassComponent | typeof NULL_DYNAMIC_COMPONENT,
   props: (Data & VNodeProps) | null = null,
@@ -525,17 +532,15 @@ function _createVNode(
   dynamicProps: string[] | null = null,
   isBlockNode = false,
 ): VNode {
+  // 注释
   if (!type || type === NULL_DYNAMIC_COMPONENT) {
-    if (__DEV__ && !type) {
-      warn(`Invalid vnode type when creating vnode: ${type}.`)
-    }
     type = Comment
   }
 
+  // 传入的已经是 vnode
   if (isVNode(type)) {
-    // createVNode receiving an existing vnode. This happens in cases like
-    // <component :is="vnode"/>
-    // #2078 make sure to merge refs during the clone instead of overwriting it
+    // createVNode接收一个已存在的虚拟节点(vnode)
+    //通常发生在类似 <component :is="vnode"/> 的场景中
     const cloned = cloneVNode(type, props, true /* mergeRef: true */)
     if (children) {
       normalizeChildren(cloned, children)
@@ -551,7 +556,7 @@ function _createVNode(
     return cloned
   }
 
-  // class component normalization.
+  // 类组件规范化
   if (isClassComponent(type)) {
     type = type.__vccOpts
   }
@@ -561,7 +566,7 @@ function _createVNode(
     type = convertLegacyComponent(type, currentRenderingInstance)
   }
 
-  // class & style normalization.
+  // class & style 规范化.
   if (props) {
     // for reactive or proxy objects, we need to clone it to enable mutation.
     props = guardReactiveProps(props)!
@@ -579,7 +584,7 @@ function _createVNode(
     }
   }
 
-  // encode the vnode type information into a bitmap
+  // vnode 类型
   const shapeFlag = isString(type)
     ? ShapeFlags.ELEMENT
     : __FEATURE_SUSPENSE__ && isSuspense(type)
@@ -592,17 +597,10 @@ function _createVNode(
             ? ShapeFlags.FUNCTIONAL_COMPONENT
             : 0
 
-  if (__DEV__ && shapeFlag & ShapeFlags.STATEFUL_COMPONENT && isProxy(type)) {
-    type = toRaw(type)
-    warn(
-      `Vue received a Component that was made a reactive object. This can ` +
-        `lead to unnecessary performance overhead and should be avoided by ` +
-        `marking the component with \`markRaw\` or using \`shallowRef\` ` +
-        `instead of \`ref\`.`,
-      `\nComponent that was made reactive: `,
-      type,
-    )
-  }
+  /**
+   * Vue接收到一个已被转化为响应式对象的组件。这样做可能导致不必要的性能开销，应尽量避免这种情况。
+   * 推荐的做法是使用markRaw对组件进行标记，或者在需要引用组件的地方使用shallowRef替代ref。
+   */
 
   return createBaseVNode(
     type,

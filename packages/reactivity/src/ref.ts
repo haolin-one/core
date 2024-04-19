@@ -45,6 +45,10 @@ type RefBase<T> = {
   value: T
 }
 
+/**
+ * 跟踪ref依赖
+ * @param ref ref实例对象
+ */
 export function trackRefValue(ref: RefBase<any>) {
   if (shouldTrack && activeEffect) {
     ref = toRaw(ref)
@@ -54,13 +58,7 @@ export function trackRefValue(ref: RefBase<any>) {
         () => (ref.dep = undefined),
         ref instanceof ComputedRefImpl ? ref : undefined,
       )),
-      __DEV__
-        ? {
-            target: ref,
-            type: TrackOpTypes.GET,
-            key: 'value',
-          }
-        : void 0,
+      void 0,
     )
   }
 }
@@ -73,18 +71,7 @@ export function triggerRefValue(
   ref = toRaw(ref)
   const dep = ref.dep
   if (dep) {
-    triggerEffects(
-      dep,
-      dirtyLevel,
-      __DEV__
-        ? {
-            target: ref,
-            type: TriggerOpTypes.SET,
-            key: 'value',
-            newValue: newVal,
-          }
-        : void 0,
-    )
+    triggerEffects(dep, dirtyLevel, void 0)
   }
 }
 
@@ -145,6 +132,12 @@ export function shallowRef(value?: unknown) {
   return createRef(value, true)
 }
 
+/**
+ *
+ * @param rawValue 原始值
+ * @param shallow 是否深度响应式
+ * @returns ref对象实例
+ */
 function createRef(rawValue: unknown, shallow: boolean) {
   if (isRef(rawValue)) {
     return rawValue
@@ -156,7 +149,10 @@ class RefImpl<T> {
   private _value: T
   private _rawValue: T
 
+  /** 依赖集合(映射) */
   public dep?: Dep = undefined
+
+  /** 标记为ref */
   public readonly __v_isRef = true
 
   constructor(
@@ -168,6 +164,7 @@ class RefImpl<T> {
   }
 
   get value() {
+    // 跟踪依赖
     trackRefValue(this)
     return this._value
   }
@@ -175,10 +172,15 @@ class RefImpl<T> {
   set value(newVal) {
     const useDirectValue =
       this.__v_isShallow || isShallow(newVal) || isReadonly(newVal)
+
     newVal = useDirectValue ? newVal : toRaw(newVal)
+
+    // 新旧值对比
     if (hasChanged(newVal, this._rawValue)) {
+      // 原始值修改
       this._rawValue = newVal
       this._value = useDirectValue ? newVal : toReactive(newVal)
+      // 触发依赖更新
       triggerRefValue(this, DirtyLevels.Dirty, newVal)
     }
   }

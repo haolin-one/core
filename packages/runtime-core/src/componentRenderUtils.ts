@@ -64,9 +64,6 @@ export function renderComponentRoot(
   let result
   let fallthroughAttrs
   const prev = setCurrentRenderingInstance(instance)
-  if (__DEV__) {
-    accessedAttrs = false
-  }
 
   try {
     if (vnode.shapeFlag & ShapeFlags.STATEFUL_COMPONENT) {
@@ -75,19 +72,7 @@ export function renderComponentRoot(
       const proxyToUse = withProxy || proxy
       // 'this' isn't available in production builds with `<script setup>`,
       // so warn if it's used in dev.
-      const thisProxy =
-        __DEV__ && setupState.__isScriptSetup
-          ? new Proxy(proxyToUse!, {
-              get(target, key, receiver) {
-                warn(
-                  `Property '${String(
-                    key,
-                  )}' was accessed via 'this'. Avoid using 'this' in templates.`,
-                )
-                return Reflect.get(target, key, receiver)
-              },
-            })
-          : proxyToUse
+      const thisProxy = proxyToUse
       result = normalizeVNode(
         render!.call(
           thisProxy,
@@ -104,24 +89,10 @@ export function renderComponentRoot(
       // functional
       const render = Component as FunctionalComponent
       // in dev, mark attrs accessed if optional props (attrs === props)
-      if (__DEV__ && attrs === props) {
-        markAttrsAccessed()
-      }
+
       result = normalizeVNode(
         render.length > 1
-          ? render(
-              props,
-              __DEV__
-                ? {
-                    get attrs() {
-                      markAttrsAccessed()
-                      return attrs
-                    },
-                    slots,
-                    emit,
-                  }
-                : { attrs, slots, emit },
-            )
+          ? render(props, { attrs, slots, emit })
           : render(props, null as any /* we know it doesn't need it */),
       )
       fallthroughAttrs = Component.props
@@ -139,13 +110,6 @@ export function renderComponentRoot(
   // to have comments along side the root element which makes it a fragment
   let root = result
   let setRoot: SetRootFn = undefined
-  if (
-    __DEV__ &&
-    result.patchFlag > 0 &&
-    result.patchFlag & PatchFlags.DEV_ROOT_FRAGMENT
-  ) {
-    ;[root, setRoot] = getChildRoot(result)
-  }
 
   if (fallthroughAttrs && inheritAttrs !== false) {
     const keys = Object.keys(fallthroughAttrs)
@@ -163,41 +127,6 @@ export function renderComponentRoot(
           )
         }
         root = cloneVNode(root, fallthroughAttrs)
-      } else if (__DEV__ && !accessedAttrs && root.type !== Comment) {
-        const allAttrs = Object.keys(attrs)
-        const eventAttrs: string[] = []
-        const extraAttrs: string[] = []
-        for (let i = 0, l = allAttrs.length; i < l; i++) {
-          const key = allAttrs[i]
-          if (isOn(key)) {
-            // ignore v-model handlers when they fail to fallthrough
-            if (!isModelListener(key)) {
-              // remove `on`, lowercase first letter to reflect event casing
-              // accurately
-              eventAttrs.push(key[2].toLowerCase() + key.slice(3))
-            }
-          } else {
-            extraAttrs.push(key)
-          }
-        }
-        if (extraAttrs.length) {
-          warn(
-            `Extraneous non-props attributes (` +
-              `${extraAttrs.join(', ')}) ` +
-              `were passed to component but could not be automatically inherited ` +
-              `because component renders fragment or text root nodes.`,
-          )
-        }
-        if (eventAttrs.length) {
-          warn(
-            `Extraneous non-emits event listeners (` +
-              `${eventAttrs.join(', ')}) ` +
-              `were passed to component but could not be automatically inherited ` +
-              `because component renders fragment or text root nodes. ` +
-              `If the listener is intended to be a component custom event listener only, ` +
-              `declare it using the "emits" option.`,
-          )
-        }
       }
     }
   }
@@ -210,13 +139,6 @@ export function renderComponentRoot(
   ) {
     const { class: cls, style } = vnode.props || {}
     if (cls || style) {
-      if (__DEV__ && inheritAttrs === false) {
-        warnDeprecation(
-          DeprecationTypes.INSTANCE_ATTRS_CLASS_STYLE,
-          instance,
-          getComponentName(instance.type),
-        )
-      }
       root = cloneVNode(root, {
         class: cls,
         style: style,
@@ -226,32 +148,16 @@ export function renderComponentRoot(
 
   // inherit directives
   if (vnode.dirs) {
-    if (__DEV__ && !isElementRoot(root)) {
-      warn(
-        `Runtime directive used on component with non-element root node. ` +
-          `The directives will not function as intended.`,
-      )
-    }
     // clone before mutating since the root may be a hoisted vnode
     root = cloneVNode(root)
     root.dirs = root.dirs ? root.dirs.concat(vnode.dirs) : vnode.dirs
   }
   // inherit transition data
   if (vnode.transition) {
-    if (__DEV__ && !isElementRoot(root)) {
-      warn(
-        `Component inside <Transition> renders non-element root node ` +
-          `that cannot be animated.`,
-      )
-    }
     root.transition = vnode.transition
   }
 
-  if (__DEV__ && setRoot) {
-    setRoot(root)
-  } else {
-    result = root
-  }
+  result = root
 
   setCurrentRenderingInstance(prev)
   return result
@@ -363,9 +269,6 @@ export function shouldUpdateComponent(
   // Parent component's render function was hot-updated. Since this may have
   // caused the child component's slots content to have changed, we need to
   // force the child to update as well.
-  if (__DEV__ && (prevChildren || nextChildren) && isHmrUpdating) {
-    return true
-  }
 
   // force child update for runtime directive or transition on component vnode.
   if (nextVNode.dirs || nextVNode.transition) {

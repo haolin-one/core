@@ -10,47 +10,52 @@ import {
   triggerEffects,
 } from './effect'
 
-// The main WeakMap that stores {target -> key -> dep} connections.
-// Conceptually, it's easier to think of a dependency as a Dep class
-// which maintains a Set of subscribers, but we simply store them as
-// raw Maps to reduce memory overhead.
 type KeyToDepMap = Map<any, Dep>
+/**
+ * 主 WeakMap，用于存储 { target -> key -> dep } 连接。
+ *
+ * 从概念上讲，将依赖项视为一个维护订阅者集合的 Dep 类会更容易理解，
+ * 但我们选择将其简单地存储为原始 Map，以减少内存开销。
+ */
 const targetMap = new WeakMap<object, KeyToDepMap>()
 
 export const ITERATE_KEY = Symbol(__DEV__ ? 'iterate' : '')
 export const MAP_KEY_ITERATE_KEY = Symbol(__DEV__ ? 'Map key iterate' : '')
 
 /**
- * Tracks access to a reactive property.
+ * 跟踪对响应式属性的访问。
  *
- * This will check which effect is running at the moment and record it as dep
- * which records all effects that depend on the reactive property.
+ * 这将检查当前运行的是哪个效应，并将其记录为依赖项（dep），该依赖项记录了所有依赖于该响应式属性的效应。
  *
- * @param target - Object holding the reactive property.
- * @param type - Defines the type of access to the reactive property.
- * @param key - Identifier of the reactive property to track.
+ * @param target - 持有响应式属性的对象。
+ * @param type - 定义对响应式属性的访问类型。
+ * @param key - 要跟踪的响应式属性的标识符。
  */
 export function track(target: object, type: TrackOpTypes, key: unknown) {
   if (shouldTrack && activeEffect) {
+    // 获取目标对象对应的依赖项,
     let depsMap = targetMap.get(target)
+    // 当前无记录
     if (!depsMap) {
+      // 建立新记录,键为target,值为 { key => 依赖项 } 集合
       targetMap.set(target, (depsMap = new Map()))
     }
+
+    // 获取键对应的依赖项
     let dep = depsMap.get(key)
+    // 当前无记录
     if (!dep) {
+      // 建立新纪录
       depsMap.set(key, (dep = createDep(() => depsMap!.delete(key))))
     }
-    trackEffect(
-      activeEffect,
-      dep,
-      __DEV__
-        ? {
-            target,
-            type,
-            key,
-          }
-        : void 0,
-    )
+
+    /**
+     * targetMap: [[target, depsMap]]
+     * depsMap: [[key, dep]]
+     * dep: [[]]
+     */
+
+    trackEffect(activeEffect, dep, void 0)
   }
 }
 

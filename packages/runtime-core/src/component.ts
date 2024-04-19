@@ -530,6 +530,13 @@ const emptyAppContext = createAppContext()
 
 let uid = 0
 
+/**
+ * 创建组件实例
+ * @param vnode vnode
+ * @param parent 父组件
+ * @param suspense 异步
+ * @returns
+ */
 export function createComponentInstance(
   vnode: VNode,
   parent: ComponentInternalInstance | null,
@@ -618,11 +625,7 @@ export function createComponentInstance(
     ec: null,
     sp: null,
   }
-  if (__DEV__) {
-    instance.ctx = createDevRenderContext(instance)
-  } else {
-    instance.ctx = { _: instance }
-  }
+  instance.ctx = { _: instance }
   instance.root = parent ? parent.root : instance
   instance.emit = emit.bind(null, instance)
 
@@ -748,38 +751,12 @@ function setupStatefulComponent(
 ) {
   const Component = instance.type as ComponentOptions
 
-  if (__DEV__) {
-    if (Component.name) {
-      validateComponentName(Component.name, instance.appContext.config)
-    }
-    if (Component.components) {
-      const names = Object.keys(Component.components)
-      for (let i = 0; i < names.length; i++) {
-        validateComponentName(names[i], instance.appContext.config)
-      }
-    }
-    if (Component.directives) {
-      const names = Object.keys(Component.directives)
-      for (let i = 0; i < names.length; i++) {
-        validateDirectiveName(names[i])
-      }
-    }
-    if (Component.compilerOptions && isRuntimeOnly()) {
-      warn(
-        `"compilerOptions" is only supported when using a build of Vue that ` +
-          `includes the runtime compiler. Since you are using a runtime-only ` +
-          `build, the options should be passed via your build tool config instead.`,
-      )
-    }
-  }
   // 0. create render proxy property access cache
   instance.accessCache = Object.create(null)
   // 1. create public instance / render proxy
   // also mark it raw so it's never observed
   instance.proxy = markRaw(new Proxy(instance.ctx, PublicInstanceProxyHandlers))
-  if (__DEV__) {
-    exposePropsOnRenderContext(instance)
-  }
+
   // 2. call setup()
   const { setup } = Component
   if (setup) {
@@ -792,10 +769,7 @@ function setupStatefulComponent(
       setup,
       instance,
       ErrorCodes.SETUP_FUNCTION,
-      [
-        __DEV__ ? shallowReadonly(instance.props) : instance.props,
-        setupContext,
-      ],
+      [instance.props, setupContext],
     )
     resetTracking()
     reset()
@@ -853,27 +827,12 @@ export function handleSetupResult(
       instance.render = setupResult as InternalRenderFunction
     }
   } else if (isObject(setupResult)) {
-    if (__DEV__ && isVNode(setupResult)) {
-      warn(
-        `setup() should not return VNodes directly - ` +
-          `return a render function instead.`,
-      )
-    }
     // setup returned bindings.
     // assuming a render function compiled from template is present.
     if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
       instance.devtoolsRawSetupState = setupResult
     }
     instance.setupState = proxyRefs(setupResult)
-    if (__DEV__) {
-      exposeSetupStateOnRenderContext(instance)
-    }
-  } else if (__DEV__ && setupResult !== undefined) {
-    warn(
-      `setup() should return an object. Received: ${
-        setupResult === null ? 'null' : typeof setupResult
-      }`,
-    )
   }
   finishComponentSetup(instance, isSSR)
 }
@@ -930,9 +889,6 @@ export function finishComponentSetup(
         Component.template ||
         resolveMergedOptions(instance).template
       if (template) {
-        if (__DEV__) {
-          startMeasure(instance, `compile`)
-        }
         const { isCustomElement, compilerOptions } = instance.appContext.config
         const { delimiters, compilerOptions: componentCompilerOptions } =
           Component
@@ -955,9 +911,6 @@ export function finishComponentSetup(
           }
         }
         Component.render = compile(template, finalCompilerOptions)
-        if (__DEV__) {
-          endMeasure(instance, `compile`)
-        }
       }
     }
 

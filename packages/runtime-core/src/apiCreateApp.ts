@@ -294,6 +294,7 @@ export function createAppAPI<HostElement>(
         namespace?: boolean | ElementNamespace,
       ): any {
         if (!isMounted) {
+          // 创建跟组件 vnode
           const vnode = createVNode(rootComponent, rootProps)
           // store app context on the root VNode.
           // this will be set on the root instance on initial mount.
@@ -310,6 +311,7 @@ export function createAppAPI<HostElement>(
           } else {
             render(vnode, rootContainer, namespace)
           }
+          // 已经挂载
           isMounted = true
           app._container = rootContainer
           // for devtools and telemetry

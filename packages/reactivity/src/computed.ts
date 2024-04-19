@@ -32,11 +32,14 @@ export const COMPUTED_SIDE_EFFECT_WARN =
   ` Check the docs for more details: https://vuejs.org/guide/essentials/computed.html#getters-should-be-side-effect-free`
 
 export class ComputedRefImpl<T> {
+  /** 依赖集合(映射) */
   public dep?: Dep = undefined
 
+  /** 计算属性值 */
   private _value!: T
   public readonly effect: ReactiveEffect<T>
 
+  /** 标记为ref */
   public readonly __v_isRef = true
   public readonly [ReactiveFlags.IS_READONLY]: boolean = false
 
@@ -71,19 +74,20 @@ export class ComputedRefImpl<T> {
   get value() {
     // the computed ref may get wrapped by other proxies e.g. readonly() #3376
     const self = toRaw(this)
+
     if (
       (!self._cacheable || self.effect.dirty) &&
       hasChanged(self._value, (self._value = self.effect.run()!))
     ) {
       triggerRefValue(self, DirtyLevels.Dirty)
     }
+
     trackRefValue(self)
+
     if (self.effect._dirtyLevel >= DirtyLevels.MaybeDirty_ComputedSideEffect) {
-      if (__DEV__ && (__TEST__ || this._warnRecursive)) {
-        warn(COMPUTED_SIDE_EFFECT_WARN, `\n\ngetter: `, this.getter)
-      }
       triggerRefValue(self, DirtyLevels.MaybeDirty_ComputedSideEffect)
     }
+
     return self._value
   }
 
@@ -154,22 +158,13 @@ export function computed<T>(
   const onlyGetter = isFunction(getterOrOptions)
   if (onlyGetter) {
     getter = getterOrOptions
-    setter = __DEV__
-      ? () => {
-          warn('Write operation failed: computed value is readonly')
-        }
-      : NOOP
+    setter = NOOP
   } else {
     getter = getterOrOptions.get
     setter = getterOrOptions.set
   }
 
   const cRef = new ComputedRefImpl(getter, setter, onlyGetter || !setter, isSSR)
-
-  if (__DEV__ && debugOptions && !isSSR) {
-    cRef.effect.onTrack = debugOptions.onTrack
-    cRef.effect.onTrigger = debugOptions.onTrigger
-  }
 
   return cRef as any
 }

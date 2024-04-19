@@ -23,6 +23,7 @@ export type DebuggerEventExtraInfo = {
   oldTarget?: Map<any, any> | Set<any>
 }
 
+/** 活跃副作用 */
 export let activeEffect: ReactiveEffect | undefined
 
 export class ReactiveEffect<T = any> {
@@ -152,6 +153,11 @@ function postCleanupEffect(effect: ReactiveEffect) {
   }
 }
 
+/**
+ * 清空依赖副作用
+ * @param dep 依赖集合
+ * @param effect activeEffect
+ */
 function cleanupDepEffect(dep: Dep, effect: ReactiveEffect) {
   const trackId = dep.get(effect)
   if (trackId !== undefined && effect._trackId !== trackId) {
@@ -264,24 +270,31 @@ export function resetScheduling() {
   }
 }
 
+/**
+ * 跟踪副作用
+ * @param effect 活跃的副作用
+ * @param dep 依赖集合
+ */
 export function trackEffect(
   effect: ReactiveEffect,
   dep: Dep,
   debuggerEventExtraInfo?: DebuggerEventExtraInfo,
 ) {
+  // 关联需要更新或初次关联
   if (dep.get(effect) !== effect._trackId) {
     dep.set(effect, effect._trackId)
+
+    // 获取旧依赖
     const oldDep = effect.deps[effect._depsLength]
+    // 对比新旧依赖
     if (oldDep !== dep) {
       if (oldDep) {
         cleanupDepEffect(oldDep, effect)
       }
+      // 新依赖存入
       effect.deps[effect._depsLength++] = dep
     } else {
       effect._depsLength++
-    }
-    if (__DEV__) {
-      effect.onTrack?.(extend({ effect }, debuggerEventExtraInfo!))
     }
   }
 }
@@ -297,6 +310,7 @@ export function triggerEffects(
   for (const effect of dep.keys()) {
     // dep.get(effect) is very expensive, we need to calculate it lazily and reuse the result
     let tracking: boolean | undefined
+
     if (
       effect._dirtyLevel < dirtyLevel &&
       (tracking ??= dep.get(effect) === effect._trackId)
@@ -304,13 +318,11 @@ export function triggerEffects(
       effect._shouldSchedule ||= effect._dirtyLevel === DirtyLevels.NotDirty
       effect._dirtyLevel = dirtyLevel
     }
+
     if (
       effect._shouldSchedule &&
       (tracking ??= dep.get(effect) === effect._trackId)
     ) {
-      if (__DEV__) {
-        effect.onTrigger?.(extend({ effect }, debuggerEventExtraInfo))
-      }
       effect.trigger()
       if (
         (!effect._runnings || effect.allowRecurse) &&
